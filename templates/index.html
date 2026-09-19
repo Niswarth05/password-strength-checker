@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Password Security Tool</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+<header class="topbar">
+
+    <div class="brand">
+        <span class="brand-mark">PS</span>
+
+        <div>
+            <div class="brand-name">
+                PASSWORD SECURITY
+            </div>
+
+            <div class="brand-subtitle">
+                LOCAL SECURITY UTILITY
+            </div>
+        </div>
+    </div>
+
+
+    <div class="system-status">
+        <span class="status-indicator"></span>
+        LOCAL
+    </div>
+
+</header>
+
+
+<main class="container">
+
+    <section class="intro">
+
+        <div class="section-index">
+            / 00
+        </div>
+
+        <h1>
+            Password
+            <span>Security</span>
+        </h1>
+
+        <p>
+            Analyze password strength, generate secure credentials,
+            and test bcrypt password verification.
+        </p>
+
+    </section>
+
+
+    <section class="workspace">
+
+
+        <!-- PASSWORD ANALYZER -->
+
+        <section class="module">
+
+            <div class="module-header">
+
+                <div>
+                    <span class="module-number">
+                        01
+                    </span>
+
+                    <h2>
+                        Password Analyzer
+                    </h2>
+                </div>
+
+                <span class="module-type">
+                    ANALYSIS
+                </span>
+
+            </div>
+
+
+            <p class="module-description">
+                Evaluate password characteristics and calculate
+                a simplified theoretical entropy estimate.
+            </p>
+
+
+            <div class="field">
+
+                <label for="checkPassword">
+                    PASSWORD
+                </label>
+
+                <div class="password-field">
+
+                    <input
+                        type="password"
+                        id="checkPassword"
+                        placeholder="Enter password"
+                        autocomplete="off"
+                    >
+
+                    <button
+                        type="button"
+                        class="text-button"
+                        onclick="togglePassword('checkPassword', this)"
+                    >
+                        SHOW
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <button
+                class="primary-button"
+                onclick="checkPassword()"
+            >
+                ANALYZE
+            </button>
+
+
+            <div
+                id="checkResult"
+                class="analysis-result hidden"
+            >
+
+                <div class="result-summary">
+
+                    <div class="score-block">
+
+                        <span class="result-label">
+                            SCORE
+                        </span>
+
+                        <div class="score-value">
+                            <span id="score">0</span>
+                            <span class="score-max">/5</span>
+                        </div>
+
+                    </div>
+
+
+                    <div class="strength-block">
+
+                        <span class="result-label">
+                            STRENGTH
+                        </span>
+
+                        <strong id="strength">
+                            -
+                        </strong>
+
+                    </div>
+
+
+                    <div class="entropy-block">
+
+                        <span class="result-label">
+                            ENTROPY
+                        </span>
+
+                        <strong>
+                            <span id="entropy">0</span>
+                            bits
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="meter">
+
+                    <div
+                        id="scoreBar"
+                        class="meter-fill"
+                    ></div>
+
+                </div>
+
+
+                <div class="result-section">
+
+                    <div class="result-section-title">
+                        SECURITY CHECKS
+                    </div>
+
+                    <div id="checksList"></div>
+
+                </div>
+
+
+                <div class="result-section common-section">
+
+                    <div class="result-section-title">
+                        COMMON PASSWORD DATABASE
+                    </div>
+
+                    <div class="common-status">
+
+                        <span>
+                            STATUS
+                        </span>
+
+                        <strong id="common">
+                            -
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="improvements"
+                    class="result-section hidden"
+                >
+
+                    <div class="result-section-title">
+                        RECOMMENDATIONS
+                    </div>
+
+                    <ul id="reasons"></ul>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- GENERATOR -->
+
+        <section class="module">
+
+            <div class="module-header">
+
+                <div>
+                    <span class="module-number">
+                        02
+                    </span>
+
+                    <h2>
+                        Secure Generator
+                    </h2>
+                </div>
+
+                <span class="module-type">
+                    GENERATION
+                </span>
+
+            </div>
+
+
+            <p class="module-description">
+                Generate a cryptographically secure password
+                using Python's secrets module.
+            </p>
+
+
+            <div class="field">
+
+                <div class="field-heading">
+
+                    <label for="passwordLength">
+                        LENGTH
+                    </label>
+
+                    <span id="lengthValue">
+                        20
+                    </span>
+
+                </div>
+
+
+                <input
+                    type="range"
+                    id="passwordLength"
+                    min="12"
+                    max="64"
+                    value="20"
+                    oninput="updateLength()"
+                >
+
+            </div>
+
+
+            <button
+                class="primary-button"
+                onclick="generatePassword()"
+            >
+                GENERATE
+            </button>
+
+
+            <div
+                id="generatedResult"
+                class="generated-result hidden"
+            >
+
+                <div class="result-label">
+                    GENERATED CREDENTIAL
+                </div>
+
+                <div class="generated-password">
+
+                    <code id="generatedPassword"></code>
+
+                    <button
+                        class="copy-button"
+                        onclick="copyPassword()"
+                    >
+                        COPY
+                    </button>
+
+                </div>
+
+                <div
+                    id="copyMessage"
+                    class="small-message"
+                ></div>
+
+            </div>
+
+
+            <div class="technical-note">
+
+                <span class="note-label">
+                    METHOD
+                </span>
+
+                <p>
+                    Uses <strong>secrets</strong> instead of
+                    the standard pseudo-random generator.
+                </p>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- BCRYPT -->
+
+        <section class="module">
+
+            <div class="module-header">
+
+                <div>
+                    <span class="module-number">
+                        03
+                    </span>
+
+                    <h2>
+                        Bcrypt
+                    </h2>
+                </div>
+
+                <span class="module-type">
+                    STORAGE
+                </span>
+
+            </div>
+
+
+            <p class="module-description">
+                Demonstrate password hashing and verification
+                without storing the original credential.
+            </p>
+
+
+            <div class="field">
+
+                <label for="hashPassword">
+                    PASSWORD
+                </label>
+
+                <div class="password-field">
+
+                    <input
+                        type="password"
+                        id="hashPassword"
+                        placeholder="Enter password"
+                        autocomplete="off"
+                    >
+
+                    <button
+                        type="button"
+                        class="text-button"
+                        onclick="togglePassword('hashPassword', this)"
+                    >
+                        SHOW
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <button
+                class="primary-button"
+                onclick="hashPassword()"
+            >
+                HASH & SAVE
+            </button>
+
+
+            <div
+                id="hashMessage"
+                class="message hidden"
+            ></div>
+
+
+            <div class="separator"></div>
+
+
+            <div class="field">
+
+                <label for="verifyPassword">
+                    VERIFY PASSWORD
+                </label>
+
+                <div class="password-field">
+
+                    <input
+                        type="password"
+                        id="verifyPassword"
+                        placeholder="Enter password"
+                        autocomplete="off"
+                    >
+
+                    <button
+                        type="button"
+                        class="text-button"
+                        onclick="togglePassword('verifyPassword', this)"
+                    >
+                        SHOW
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <button
+                class="secondary-button"
+                onclick="verifyPassword()"
+            >
+                VERIFY
+            </button>
+
+
+            <div
+                id="verifyMessage"
+                class="message hidden"
+            ></div>
+
+
+            <div class="technical-note">
+
+                <span class="note-label">
+                    ALGORITHM
+                </span>
+
+                <p>
+                    Bcrypt applies a salt and a computational
+                    cost designed for password storage.
+                </p>
+
+            </div>
+
+        </section>
+
+    </section>
+
+
+
+    <!-- SECURITY CONCEPTS -->
+
+    <section class="concepts-section">
+
+        <div class="section-heading">
+
+            <span class="section-index">
+                / 04
+            </span>
+
+            <h2>
+                Security Concepts
+            </h2>
+
+        </div>
+
+
+        <div class="concept-grid">
+
+            <article class="concept">
+
+                <span class="concept-number">
+                    01
+                </span>
+
+                <h3>
+                    Password Strength
+                </h3>
+
+                <p>
+                    Measures length and character diversity
+                    against basic security requirements.
+                </p>
+
+            </article>
+
+
+            <article class="concept">
+
+                <span class="concept-number">
+                    02
+                </span>
+
+                <h3>
+                    Entropy
+                </h3>
+
+                <p>
+                    Provides a simplified theoretical estimate
+                    of the password search space.
+                </p>
+
+            </article>
+
+
+            <article class="concept">
+
+                <span class="concept-number">
+                    03
+                </span>
+
+                <h3>
+                    Bcrypt
+                </h3>
+
+                <p>
+                    Demonstrates how applications can store
+                    password hashes instead of plaintext passwords.
+                </p>
+
+            </article>
+
+
+            <article class="concept">
+
+                <span class="concept-number">
+                    04
+                </span>
+
+                <h3>
+                    Secure Generation
+                </h3>
+
+                <p>
+                    Uses a security-oriented random source
+                    to generate credentials.
+                </p>
+
+            </article>
+
+        </div>
+
+    </section>
+
+</main>
+
+
+<footer>
+
+    <div>
+        PASSWORD SECURITY TOOL
+    </div>
+
+    <div>
+        PYTHON / FLASK / BCRYPT
+    </div>
+
+</footer>
+
+
+
+<script>
+
+function togglePassword(id, button) {
+
+    const input =
+        document.getElementById(id);
+
+    if (input.type === "password") {
+
+        input.type = "text";
+
+        button.textContent = "HIDE";
+
+    } else {
+
+        input.type = "password";
+
+        button.textContent = "SHOW";
+
+    }
+}
+
+
+
+async function checkPassword() {
+
+    const password =
+        document.getElementById("checkPassword").value;
+
+
+    if (!password) {
+
+        alert("Enter a password first.");
+
+        return;
+    }
+
+
+    const response =
+        await fetch("/api/check", {
+
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+                password: password
+            })
+
+        });
+
+
+    const data =
+        await response.json();
+
+
+    if (!data.success) {
+
+        alert(data.error);
+
+        return;
+    }
+
+
+    document
+        .getElementById("checkResult")
+        .classList.remove("hidden");
+
+
+    document
+        .getElementById("score")
+        .textContent = data.score;
+
+
+    document
+        .getElementById("strength")
+        .textContent = data.strength;
+
+
+    document
+        .getElementById("entropy")
+        .textContent = data.entropy;
+
+
+    const common =
+        document.getElementById("common");
+
+
+    if (data.common) {
+
+        common.textContent = "DETECTED";
+
+        common.className = "danger";
+
+    } else {
+
+        common.textContent = "NOT DETECTED";
+
+        common.className = "success";
+
+    }
+
+
+    document
+        .getElementById("scoreBar")
+        .style.width =
+        `${(data.score / 5) * 100}%`;
+
+
+    const checksList =
+        document.getElementById("checksList");
+
+
+    checksList.innerHTML = "";
+
+
+    for (
+        const [name, passed]
+        of Object.entries(data.checks)
+    ) {
+
+        const item =
+            document.createElement("div");
+
+
+        item.className =
+            passed
+                ? "check passed"
+                : "check failed";
+
+
+        item.innerHTML = `
+            <span class="check-symbol">
+                ${passed ? "PASS" : "FAIL"}
+            </span>
+
+            <span>
+                ${name}
+            </span>
+        `;
+
+
+        checksList.appendChild(item);
+
+    }
+
+
+    const reasons =
+        document.getElementById("reasons");
+
+
+    reasons.innerHTML = "";
+
+
+    if (data.reasons.length > 0) {
+
+        document
+            .getElementById("improvements")
+            .classList.remove("hidden");
+
+
+        data.reasons.forEach(reason => {
+
+            const li =
+                document.createElement("li");
+
+            li.textContent = reason;
+
+            reasons.appendChild(li);
+
+        });
+
+    } else {
+
+        document
+            .getElementById("improvements")
+            .classList.add("hidden");
+
+    }
+}
+
+
+
+function updateLength() {
+
+    const value =
+        document.getElementById("passwordLength").value;
+
+
+    document
+        .getElementById("lengthValue")
+        .textContent = value;
+}
+
+
+
+async function generatePassword() {
+
+    const length =
+        document.getElementById("passwordLength").value;
+
+
+    const response =
+        await fetch("/api/generate", {
+
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+                length: length
+            })
+
+        });
+
+
+    const data =
+        await response.json();
+
+
+    if (!data.success) {
+
+        alert(data.error);
+
+        return;
+    }
+
+
+    document
+        .getElementById("generatedResult")
+        .classList.remove("hidden");
+
+
+    document
+        .getElementById("generatedPassword")
+        .textContent =
+        data.password;
+
+
+    document
+        .getElementById("copyMessage")
+        .textContent = "";
+}
+
+
+
+async function copyPassword() {
+
+    const password =
+        document
+            .getElementById("generatedPassword")
+            .textContent;
+
+
+    await navigator.clipboard.writeText(password);
+
+
+    document
+        .getElementById("copyMessage")
+        .textContent =
+        "COPIED TO CLIPBOARD";
+}
+
+
+
+async function hashPassword() {
+
+    const password =
+        document
+            .getElementById("hashPassword")
+            .value;
+
+
+    if (!password) {
+
+        showActionMessage(
+            "hashMessage",
+            "Enter a password first.",
+            false
+        );
+
+        return;
+    }
+
+
+    const response =
+        await fetch("/api/hash", {
+
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+                password: password
+            })
+
+        });
+
+
+    const data =
+        await response.json();
+
+
+    showActionMessage(
+        "hashMessage",
+        data.success
+            ? "PASSWORD HASHED AND SAVED"
+            : data.error,
+        data.success
+    );
+}
+
+
+
+async function verifyPassword() {
+
+    const password =
+        document
+            .getElementById("verifyPassword")
+            .value;
+
+
+    if (!password) {
+
+        showActionMessage(
+            "verifyMessage",
+            "Enter a password first.",
+            false
+        );
+
+        return;
+    }
+
+
+    const response =
+        await fetch("/api/verify", {
+
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+                password: password
+            })
+
+        });
+
+
+    const data =
+        await response.json();
+
+
+    if (data.success) {
+
+        showActionMessage(
+            "verifyMessage",
+            data.matches
+                ? "PASSWORD MATCH"
+                : "PASSWORD MISMATCH",
+            data.matches
+        );
+
+    } else {
+
+        showActionMessage(
+            "verifyMessage",
+            data.error,
+            false
+        );
+    }
+}
+
+
+
+function showActionMessage(
+    elementId,
+    message,
+    success
+) {
+
+    const element =
+        document.getElementById(elementId);
+
+
+    element.classList.remove("hidden");
+
+
+    element.textContent =
+        message;
+
+
+    element.className =
+        success
+            ? "message message-success"
+            : "message message-error";
+}
+
+</script>
+
+</body>
+
+</html>
