@@ -236,6 +236,12 @@ dialog::backdrop { background: var(--scrim); }
 .dialog-title { font-size: 1.4rem; font-weight: 750; font-stretch: 85%; letter-spacing: -0.01em; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.25rem; }
 
+/* ---------- settings ---------- */
+.section { display: grid; gap: 0.75rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.section-title { font-size: 1.05rem; font-weight: 700; }
+.section-submit { justify-self: start; }
+input[type="file"].input { padding: 0.4rem 0.5rem; }
+
 /* ---------- strength check ---------- */
 .result { display: grid; gap: 1rem; }
 .verdict { display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; }

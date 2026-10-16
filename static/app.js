@@ -20,20 +20,22 @@ function h(tag, props = {}, ...kids) {
   return el;
 }
 
-async function api(path, { method = "GET", body } = {}) {
+async function api(path, { method = "GET", body, raw = false } = {}) {
   const res = await fetch(path, {
     method,
     headers: body ? { "Content-Type": "application/json" } : {},
     body: body ? JSON.stringify(body) : undefined,
   });
   let data = {};
-  try { data = await res.json(); } catch { /* empty body */ }
+  if (!(raw && res.ok)) {
+    try { data = await res.json(); } catch { /* empty body */ }
+  }
   if (res.status === 401 && data.locked) {
     await showAuth("Vault locked. Enter your master password to continue.");
     throw new Error("locked");
   }
   if (!res.ok) throw new Error(data.error || "Something went wrong.");
-  return data;
+  return raw ? res : data;
 }
 
 let toastTimer;
@@ -103,6 +105,7 @@ async function showAuth(message = "") {
   $("#search").value = "";
   state.query = "";
   for (const d of document.querySelectorAll("dialog[open]")) d.close();
+  for (const f of document.querySelectorAll("dialog form")) f.reset();
 
   const { exists } = await fetch("/api/status").then((r) => r.json());
   vaultExists = exists;
@@ -333,9 +336,11 @@ $("#f-generate").addEventListener("click", async () => {
 });
 
 $("#f-check").addEventListener("click", () => {
+  // Words from this entry: a password containing them is rated lower.
+  const context = [$("#f-name").value, $("#f-username").value.split("@")[0]];
   openCheck($("#f-password").value, (password) => {
     $("#f-password").value = password;
-  });
+  }, context);
 });
 
 $("#entry-form").addEventListener("submit", async (event) => {
@@ -384,10 +389,12 @@ $("#delete-cancel").addEventListener("click", () => $("#delete-dialog").close())
 
 /* ---------- strength check ---------- */
 let useCallback = null;
+let checkContext = [];
 let currentSuggestion = "";
 
-function openCheck(initial = "", onUse = null) {
+function openCheck(initial = "", onUse = null, context = []) {
   useCallback = onUse;
+  checkContext = context;
   $("#check-input").value = initial;
   $("#check-input").type = "password";
   $("#check-show").textContent = "Show";
@@ -415,7 +422,7 @@ $("#check-form").addEventListener("submit", (event) => {
 async function runCheck() {
   $("#check-error").textContent = "";
   try {
-    const result = await api("/api/check", { method: "POST", body: { password: $("#check-input").value } });
+    const result = await api("/api/check", { method: "POST", body: { password: $("#check-input").value, context: checkContext } });
     renderCheck(result);
   } catch (err) {
     $("#check-result").replaceChildren();
@@ -433,13 +440,15 @@ function renderCheck(r) {
     h("div", {},
       h("div", { class: "verdict", "data-level": String(level) },
         h("span", { class: "verdict-label" }, levelText(r.strength)),
-        h("span", { class: "hint" }, `Up to ${r.entropy} bits of entropy if the characters were random`)),
+        h("span", { class: "hint" }, `Estimated time to crack: ${r.crack_time}`)),
       h("div", { class: "meter", "data-level": String(level), "aria-hidden": "true" },
         h("span"), h("span"), h("span"), h("span"), h("span"))),
 
     r.issues.length
       ? h("ul", { class: "review-list" }, r.issues.map((text) => h("li", {}, text)))
       : h("p", {}, "No problems found."),
+
+    h("p", { class: "hint" }, "Based on an offline attack against a slow hash such as bcrypt. Weak passwords fall much faster."),
 
     h("ul", { class: "checks" },
       Object.entries(r.checks).map(([label, ok]) =>
@@ -483,6 +492,94 @@ async function randomInstead() {
     $("#suggestion-note").textContent = "Fully random, with no link to your original password.";
   } catch (err) { $("#check-error").textContent = err.message; }
 }
+
+/* ---------- settings: master password, backup, restore ---------- */
+function clearSettings() {
+  for (const form of document.querySelectorAll("#settings-dialog form")) form.reset();
+  for (const msg of document.querySelectorAll("#settings-dialog .error")) msg.textContent = "";
+}
+
+$("#settings-btn").addEventListener("click", () => {
+  clearSettings();
+  $("#settings-dialog").showModal();
+});
+$("#settings-close").addEventListener("click", () => $("#settings-dialog").close());
+$("#settings-dialog").addEventListener("close", clearSettings);
+
+$("#master-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const msg = $("#master-msg");
+  msg.textContent = "";
+  if ($("#mp-new").value !== $("#mp-confirm").value) {
+    msg.textContent = "The two new master passwords don't match.";
+    return;
+  }
+  try {
+    await api("/api/change-master", {
+      method: "POST",
+      body: { old: $("#mp-old").value, new: $("#mp-new").value },
+    });
+    clearSettings();
+    toast("Master password changed.");
+  } catch (err) {
+    if (err.message !== "locked") msg.textContent = err.message;
+  }
+});
+
+$("#export-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const msg = $("#export-msg");
+  msg.textContent = "";
+  const backupPassword = $("#ex-backup").value;
+  if (backupPassword !== $("#ex-confirm").value) {
+    msg.textContent = "The two backup passwords don't match.";
+    return;
+  }
+  try {
+    const res = await api("/api/export", {
+      method: "POST",
+      body: { master: $("#ex-master").value, backup_password: backupPassword },
+      raw: true,
+    });
+    const url = URL.createObjectURL(await res.blob());
+    const link = h("a", { href: url, download: `vault-backup-${new Date().toISOString().slice(0, 10)}.json` });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    clearSettings();
+    toast("Backup downloaded.");
+  } catch (err) {
+    if (err.message !== "locked") msg.textContent = err.message;
+  }
+});
+
+$("#import-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const msg = $("#import-msg");
+  msg.textContent = "";
+  const file = $("#im-file").files[0];
+  if (!file) {
+    msg.textContent = "Choose a backup file first.";
+    return;
+  }
+  if (file.size > 4 * 1024 * 1024) {
+    msg.textContent = "That file is too large to be a Vault backup.";
+    return;
+  }
+  try {
+    const result = await api("/api/import", {
+      method: "POST",
+      body: { backup: await file.text(), password: $("#im-password").value },
+    });
+    clearSettings();
+    await loadEntries();
+    const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+    toast(`Imported ${plural(result.added, "entry", "entries")}. Skipped ${plural(result.skipped, "duplicate", "duplicates")}.`);
+  } catch (err) {
+    if (err.message !== "locked") msg.textContent = err.message;
+  }
+});
 
 /* ---------- lock ---------- */
 $("#lock-btn").addEventListener("click", async () => {

@@ -43,6 +43,7 @@
       <div class="topbar-actions">
         <button id="add-btn" class="btn btn-primary" type="button">Add entry</button>
         <button id="check-btn" class="btn" type="button">Strength check</button>
+        <button id="settings-btn" class="btn" type="button">Settings</button>
         <button id="lock-btn" class="btn" type="button">Lock</button>
       </div>
     </header>
@@ -89,6 +90,70 @@
         <button class="btn btn-primary" type="submit">Save entry</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- Settings: master password, backup, restore -->
+  <dialog id="settings-dialog" aria-labelledby="settings-title">
+    <div class="dialog-body">
+      <h2 id="settings-title" class="dialog-title">Settings</h2>
+
+      <form id="master-form" class="section" autocomplete="off">
+        <h3 class="section-title">Change master password</h3>
+        <p class="hint">Your vault is re-encrypted with the new password. Backups you made earlier keep their own backup password.</p>
+        <div>
+          <label class="label" for="mp-old">Current master password</label>
+          <input id="mp-old" class="input" type="password" autocomplete="off">
+        </div>
+        <div>
+          <label class="label" for="mp-new">New master password</label>
+          <input id="mp-new" class="input" type="password" autocomplete="new-password">
+        </div>
+        <div>
+          <label class="label" for="mp-confirm">Confirm new master password</label>
+          <input id="mp-confirm" class="input" type="password" autocomplete="new-password">
+        </div>
+        <p id="master-msg" class="error" role="alert"></p>
+        <button class="btn btn-primary section-submit" type="submit">Change master password</button>
+      </form>
+
+      <form id="export-form" class="section" autocomplete="off">
+        <h3 class="section-title">Export an encrypted backup</h3>
+        <p class="hint">Saves every entry in one file, encrypted with a backup password you choose. Without that password the file cannot be opened, so keep it safe.</p>
+        <div>
+          <label class="label" for="ex-master">Your master password</label>
+          <input id="ex-master" class="input" type="password" autocomplete="off">
+        </div>
+        <div>
+          <label class="label" for="ex-backup">Backup password</label>
+          <input id="ex-backup" class="input" type="password" autocomplete="new-password">
+        </div>
+        <div>
+          <label class="label" for="ex-confirm">Confirm backup password</label>
+          <input id="ex-confirm" class="input" type="password" autocomplete="new-password">
+        </div>
+        <p id="export-msg" class="error" role="alert"></p>
+        <button class="btn btn-primary section-submit" type="submit">Download backup</button>
+      </form>
+
+      <form id="import-form" class="section" autocomplete="off">
+        <h3 class="section-title">Import a backup</h3>
+        <p class="hint">Adds the entries from a backup file. An entry is skipped if you already have one with the same name and username. Nothing is overwritten or removed.</p>
+        <div>
+          <label class="label" for="im-file">Backup file</label>
+          <input id="im-file" class="input" type="file" accept=".json,application/json">
+        </div>
+        <div>
+          <label class="label" for="im-password">Backup password</label>
+          <input id="im-password" class="input" type="password" autocomplete="off">
+        </div>
+        <p id="import-msg" class="error" role="alert"></p>
+        <button class="btn btn-primary section-submit" type="submit">Import backup</button>
+      </form>
+
+      <div class="dialog-actions">
+        <button id="settings-close" class="btn" type="button">Close</button>
+      </div>
+    </div>
   </dialog>
 
   <!-- Strength check -->

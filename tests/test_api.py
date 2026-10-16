@@ -70,3 +70,61 @@ def test_security_headers(client):
     res = call(client, "get", "/")
     assert res.status_code == 200
     assert "script-src 'self'" in res.headers["Content-Security-Policy"]
+
+
+# ----- v2.1: change master password, backups, strength context --------------
+
+def test_change_master_endpoint(client):
+    call(client, "post", "/api/setup", {"master": MASTER})
+    new = "another long passphrase here"
+    res = call(client, "post", "/api/change-master", {"old": MASTER, "new": new})
+    assert res.status_code == 200
+    call(client, "post", "/api/lock", {})
+    assert call(client, "post", "/api/unlock", {"master": MASTER}).status_code == 400
+    assert call(client, "post", "/api/unlock", {"master": new}).status_code == 200
+
+
+def test_weak_master_passwords_are_refused(client):
+    res = call(client, "post", "/api/setup", {"master": "passwordpassword"})
+    assert res.status_code == 400 and "too easy to guess" in res.json["error"]
+    assert call(client, "get", "/api/status").json["exists"] is False
+
+    call(client, "post", "/api/setup", {"master": MASTER})
+    res = call(client, "post", "/api/change-master", {"old": MASTER, "new": "123456789012"})
+    assert res.status_code == 400 and "too easy to guess" in res.json["error"]
+
+
+def test_export_and_import_endpoints(client):
+    call(client, "post", "/api/setup", {"master": MASTER})
+    call(client, "post", "/api/entries", {"name": "GitHub", "username": "me", "password": "pw!1"})
+
+    res = call(client, "post", "/api/export",
+               {"master": MASTER, "backup_password": "backup password phrase"})
+    assert res.status_code == 200
+    assert "attachment" in res.headers["Content-Disposition"]
+    backup = res.get_data(as_text=True)
+    assert "GitHub" not in backup
+
+    entry_id = call(client, "get", "/api/entries").json["entries"][0]["id"]
+    call(client, "delete", f"/api/entries/{entry_id}")
+    res = call(client, "post", "/api/import",
+               {"backup": backup, "password": "backup password phrase"})
+    assert res.json == {"added": 1, "skipped": 0}
+    assert call(client, "get", "/api/entries").json["entries"][0]["name"] == "GitHub"
+
+
+def test_backup_endpoints_require_unlocked_vault(client):
+    call(client, "post", "/api/setup", {"master": MASTER})
+    call(client, "post", "/api/lock", {})
+    for path, body in (("/api/export", {"master": MASTER, "backup_password": "x" * 12}),
+                       ("/api/import", {"backup": "{}", "password": "x"}),
+                       ("/api/change-master", {"old": MASTER, "new": "y" * 14})):
+        assert call(client, "post", path, body).status_code == 401
+
+
+def test_check_endpoint_accepts_context_words(client):
+    body = {"password": "zxqvkjwplm", "context": ["zxqvkjwplm"]}
+    res = call(client, "post", "/api/check", body).json
+    assert res["weak"] and res["suggestion"]
+    # junk context must not crash it
+    assert call(client, "post", "/api/check", {"password": "abc", "context": "nope"}).status_code == 200

@@ -1,11 +1,14 @@
 from functools import wraps
 
-from flask import Flask, jsonify, render_template, request
+from datetime import date
+
+from flask import Flask, Response, jsonify, render_template, request
 
 import strength
 from vault import Vault, VaultError, MIN_MASTER_LENGTH
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # largest request body: 5 MB
 vault = Vault()
 
 ALLOWED_HOSTS = {"127.0.0.1:5000", "localhost:5000"}
@@ -41,6 +44,19 @@ def json_body():
     return data
 
 
+def require_decent_master(password):
+    """Refuse master passwords that are easy to guess (uses the strength checker)."""
+    if len(password) < MIN_MASTER_LENGTH:
+        return  # the vault itself reports the length problem
+    result = strength.analyze(password)
+    if result["strength"] in strength.WEAK_LEVELS:
+        tip = result["issues"][0] if result["issues"] else ""
+        raise VaultError(
+            "That master password is too easy to guess. "
+            f"{tip} Try a longer phrase of unrelated words.".replace("  ", " ")
+        )
+
+
 def require_unlocked(view):
     @wraps(view)
     def wrapper(*args, **kwargs):
@@ -71,7 +87,9 @@ def status():
 
 @app.route("/api/setup", methods=["POST"])
 def setup():
-    vault.create(json_body().get("master", ""))
+    master = json_body().get("master", "")
+    require_decent_master(master)
+    vault.create(master)
     return jsonify(ok=True)
 
 
@@ -85,6 +103,43 @@ def unlock():
 def lock():
     vault.lock()
     return jsonify(ok=True)
+
+
+@app.route("/api/change-master", methods=["POST"])
+@require_unlocked
+def change_master():
+    data = json_body()
+    new = data.get("new", "")
+    if not isinstance(new, str):
+        raise VaultError("New master password must be text.")
+    require_decent_master(new)
+    vault.change_master(data.get("old", ""), new)
+    return jsonify(ok=True)
+
+
+# ----- backups -----------------------------------------------------------------
+
+@app.route("/api/export", methods=["POST"])
+@require_unlocked
+def export_backup():
+    data = json_body()
+    text = vault.export_backup(data.get("master", ""), data.get("backup_password", ""))
+    filename = f"vault-backup-{date.today().isoformat()}.json"
+    return Response(
+        text,
+        mimetype="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.route("/api/import", methods=["POST"])
+@require_unlocked
+def import_backup():
+    data = json_body()
+    backup, password = data.get("backup", ""), data.get("password", "")
+    if not isinstance(backup, str) or not isinstance(password, str):
+        raise VaultError("Choose a backup file and enter its password.")
+    return jsonify(vault.import_backup(backup, password))
 
 
 # ----- entries: add, search, delete (+ view and edit) -----------------------
@@ -124,10 +179,15 @@ def delete_entry(entry_id):
 
 @app.route("/api/check", methods=["POST"])
 def check():
-    password = json_body().get("password", "")
+    data = json_body()
+    password = data.get("password", "")
     if not isinstance(password, str) or not password:
         raise VaultError("Enter a password to check.")
-    return jsonify(strength.review(password))
+    # Optional words (entry name, username...) that the password should not contain.
+    context = data.get("context", [])
+    if not isinstance(context, list):
+        context = []
+    return jsonify(strength.review(password, [c for c in context if isinstance(c, str)]))
 
 
 @app.route("/api/generate", methods=["POST"])
