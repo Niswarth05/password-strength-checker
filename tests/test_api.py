@@ -203,3 +203,37 @@ def test_version_is_valid_and_shown_on_the_page(client):
     assert re.fullmatch(r"\d+\.\d+\.\d+", app_module.VERSION)
     page = call(client, "get", "/").get_data(as_text=True)
     assert f"Vault version {app_module.VERSION}" in page
+
+
+# ----- v0.2.3: password health ---------------------------------------------------
+
+def test_health_scan_endpoint(client):
+    call(client, "post", "/api/setup", {"master": MASTER})
+    shared = "zq7-Vh2!kMw-unique-phrase-4417"
+    for name, pw in (("Forum", "sunshine1"), ("GitHub", shared), ("College", shared),
+                     ("Bank", "violet-Anchor-9033-lantern-quartz")):
+        call(client, "post", "/api/entries", {"name": name, "password": pw})
+
+    res = call(client, "post", "/api/health/scan", {})
+    assert res.status_code == 200
+    data = res.json
+    assert data["total"] == 4 and data["weak"] == 1 and data["reused"] == 2
+    text = res.get_data(as_text=True)
+    for pw in ("sunshine1", shared, "violet-Anchor-9033-lantern-quartz"):
+        assert pw not in text
+
+
+def test_health_scan_empty_vault(client):
+    call(client, "post", "/api/setup", {"master": MASTER})
+    assert call(client, "post", "/api/health/scan", {}).json["total"] == 0
+
+
+def test_health_scan_needs_unlocked_vault_and_json_post(client):
+    call(client, "post", "/api/setup", {"master": MASTER})
+    call(client, "post", "/api/lock", {})
+    assert call(client, "post", "/api/health/scan", {}).status_code == 401
+    call(client, "post", "/api/unlock", {"master": MASTER})
+    assert call(client, "get", "/api/health/scan").status_code == 405
+    res = client.post("/api/health/scan", data="x=1", content_type="text/plain",
+                      base_url="http://127.0.0.1:5000")
+    assert res.status_code == 400

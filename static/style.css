@@ -236,6 +236,35 @@ dialog::backdrop { background: var(--scrim); }
 .dialog-title { font-size: 1.4rem; font-weight: 750; font-stretch: 85%; letter-spacing: -0.01em; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.25rem; }
 
+/* ---------- password health ---------- */
+#health-dialog { width: min(52rem, calc(100vw - 2rem)); }
+.health-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.health-head .hint { margin-top: 0.3rem; max-width: 40rem; }
+.health-body { display: grid; gap: 1.1rem; }
+.stale { color: var(--brass); font-weight: 600; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.stat { padding: 0.9rem 1rem; display: grid; align-content: start; gap: 0.1rem; }
+.stat + .stat { border-left: 1px solid var(--line); }
+.stat-num { font-size: 2.2rem; font-weight: 750; font-stretch: 80%; line-height: 1.1; }
+.stat-num.bad { color: var(--danger); }
+.stat-label { font-weight: 600; }
+.stat-sub { color: var(--muted); font-size: 0.85rem; }
+.issues { display: grid; gap: 0.6rem; }
+.issue { border: 1px solid var(--line); border-left-width: 3px; border-radius: 6px; padding: 0.8rem 1rem; display: grid; gap: 0.5rem; }
+.issue-high { border-left-color: var(--danger); }
+.issue-review { border-left-color: var(--brass); }
+.issue-top { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.issue-name { font-weight: 700; overflow-wrap: anywhere; }
+.issue-user { color: var(--muted); font-size: 0.9rem; }
+.priority { font-size: 0.85rem; font-weight: 700; }
+.issue-high .priority { color: var(--danger); }
+.issue-review .priority { color: var(--brass); }
+.reasons { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.2rem; font-size: 0.95rem; }
+.reason-sub { color: var(--muted); font-size: 0.875rem; }
+.issue-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.confirm-box, .note-box { border: 1px solid var(--line); border-left: 3px solid var(--brass); border-radius: 6px; padding: 0.7rem 0.9rem; font-size: 0.95rem; }
+.confirm-box { display: grid; gap: 0.6rem; }
+
 /* ---------- breach check ---------- */
 .breach { margin-top: 0.9rem; display: grid; gap: 0.4rem; }
 .breach-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
@@ -315,6 +344,9 @@ input[type="file"].input { padding: 0.4rem 0.5rem; }
   .back { display: inline-block; }
   .search { order: 3; flex-basis: 100%; max-width: none; }
   .checks { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stat:nth-child(3) { border-left: 0; }
+  .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
 }
 
 @media (prefers-reduced-motion: reduce) {

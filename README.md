@@ -4,7 +4,7 @@ A small password manager that runs on your own computer. Your logins live in one
 encrypted file. Nothing leaves your computer unless you press **Check if leaked**
 (see [Breach check](#breach-check-optional)).
 
-**Version 0.2.2.** The password manager is the main feature. The strength checker is a side tool.
+**Version 0.2.3.** The password manager is the main feature. The strength checker is a side tool.
 The version is shown in Settings and on the unlock screen.
 
 ## Features
@@ -40,6 +40,22 @@ Ratings come from [zxcvbn](https://github.com/dwolfhub/zxcvbn-python), which loo
 really try first: common passwords, dictionary words, names, dates, keyboard patterns like `qwerty`,
 sequences like `1234`, repeats, and swaps like `p@ssw0rd`. From the Add entry form, the entry's name and
 username are also treated as guessable words.
+
+### Password health (new in 0.2.3)
+
+Press **Health**, then **Scan vault**. Nothing is scanned until you press the button.
+
+- **Weak:** passwords rated Very weak or Weak by the strength checker. The entry's name and username count as guessable words.
+- **Reused:** entries that share the exact same password. Each one lists the others it shares with.
+- **Known breached:** filled in only for entries you choose to check. Use **Check for leaks** on one entry, or
+  **Check all entries for leaks**, which tells you exactly how many lookups it will send and asks first.
+  An entry you haven't checked is never treated as safe: the summary shows "N of M checked".
+- **Fix it:** **Open** jumps to the entry. **Generate replacement** opens the edit form with a new random password.
+  Change the password on the website first, then press Save entry. Vault cannot change a password on a website for you.
+- After you edit, add, delete or import entries, the dashboard tells you the results are out of date. Press **Scan again**.
+
+The scan runs on this computer. Its report holds names and ratings only, never a password, and it is cleared when you lock the vault.
+Old passwords are not reported yet, because the vault does not record when a password itself last changed.
 
 ### Breach check (optional)
 
@@ -114,6 +130,7 @@ VAULT_FILE=~/secure/my-vault.enc make run
 ├── vault.py            Encrypted vault: entries, change master password, backups
 ├── strength.py         Strength checker (zxcvbn) and "based on yours" suggestions
 ├── breach.py           Optional breach check (k-anonymity range lookup)
+├── health.py           Password health scan (weak and reused passwords)
 ├── templates/
 │   └── index.html
 ├── static/
@@ -133,7 +150,7 @@ Fonts: Bricolage Grotesque and JetBrains Mono (SIL Open Font License).
 
 ## Ideas for later
 
-- Password health report: reused, weak, breached and old passwords
+- Password age: record when each password last changed, then flag old ones
 - Passphrase generator
 - Import from CSV (Chrome, Firefox, Bitwarden)
 - Backup verification

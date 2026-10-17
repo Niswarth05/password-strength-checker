@@ -5,10 +5,11 @@ from datetime import date
 from flask import Flask, Response, jsonify, render_template, request
 
 import breach
+import health
 import strength
 from vault import Vault, VaultError, MIN_MASTER_LENGTH
 
-VERSION = "0.2.2"
+VERSION = "0.2.3"
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # largest request body: 5 MB
@@ -196,6 +197,16 @@ def check():
     if not isinstance(context, list):
         context = []
     return jsonify(strength.review(password, [c for c in context if isinstance(c, str)]))
+
+
+# ----- password health (runs only when the user presses Scan) -------------------
+
+@app.route("/api/health/scan", methods=["POST"])
+@require_unlocked
+def health_scan():
+    json_body()
+    # The report has entry names and ratings only. Passwords stay on the server.
+    return jsonify(health.scan(vault.all_entries()))
 
 
 # ----- breach check (optional, only when the user presses the button) -----------

@@ -366,6 +366,12 @@ class Vault:
                     items.append(self._public(e))
             return sorted(items, key=lambda e: e["name"].lower())
 
+    def all_entries(self):
+        """Every entry including passwords. For server-side checks only (health scan)."""
+        with self._lock:
+            self._require_unlocked()
+            return [dict(e) for e in self._entries.values()]
+
     def get(self, entry_id):
         with self._lock:
             self._require_unlocked()

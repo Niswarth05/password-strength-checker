@@ -90,7 +90,7 @@ function bindShowToggle(button, input) {
 }
 
 /* ---------- state ---------- */
-const state = { entries: [], selectedId: null, revealed: null, query: "", breach: null };
+const state = { entries: [], selectedId: null, revealed: null, query: "", breach: null, health: null };
 const minMaster = Number(document.body.dataset.minMaster);
 
 /* ---------- create / unlock ---------- */
@@ -98,6 +98,7 @@ let vaultExists = false;
 
 async function showAuth(message = "") {
   state.breach = null;
+  state.health = null;
   state.entries = [];
   state.selectedId = null;
   state.revealed = null;
@@ -307,9 +308,10 @@ document.addEventListener("keydown", (event) => {
 /* ---------- add / edit ---------- */
 let editingId = null;
 
-async function openEntryForm(entry = null) {
+async function openEntryForm(entry = null, { replacement = false } = {}) {
   editingId = entry ? entry.id : null;
-  $("#entry-title").textContent = entry ? "Edit entry" : "Add entry";
+  $("#entry-title").textContent = replacement ? "Replace password" : entry ? "Edit entry" : "Add entry";
+  $("#entry-note").hidden = !replacement;
   $("#entry-error").textContent = "";
   $("#f-name").value = entry ? entry.name : "";
   $("#f-username").value = entry ? entry.username : "";
@@ -321,13 +323,27 @@ async function openEntryForm(entry = null) {
   if (entry) {
     try { $("#f-password").value = await fetchPassword(entry.id); } catch { return; }
   }
+  if (replacement) {
+    try {
+      const { password } = await api("/api/generate", { method: "POST", body: {} });
+      $("#f-password").value = password;
+      $("#f-password").type = "text";
+      $("#f-show").textContent = "Hide";
+    } catch { return; }
+  }
   $("#entry-dialog").showModal();
   $("#f-name").focus();
 }
 
 bindShowToggle($("#f-show"), $("#f-password"));
 $("#add-btn").addEventListener("click", () => openEntryForm());
-$("#entry-cancel").addEventListener("click", () => { $("#f-password").value = ""; $("#entry-dialog").close(); });
+$("#entry-cancel").addEventListener("click", () => $("#entry-dialog").close());
+// Clear the password field however the dialog closes (Cancel, Save or Esc).
+$("#entry-dialog").addEventListener("close", () => { $("#f-password").value = ""; });
+$("#f-copy").addEventListener("click", () => {
+  const value = $("#f-password").value;
+  if (value) copyText(value, "Password", 20);
+});
 
 $("#f-generate").addEventListener("click", async () => {
   try {
@@ -365,6 +381,7 @@ $("#entry-form").addEventListener("submit", async (event) => {
     state.revealed = null;
     $("#app").classList.add("show-detail");
     await loadEntries();
+    markHealthStale(result.entry.id);
     toast(editingId ? "Entry saved." : "Entry added.");
   } catch (err) {
     if (err.message !== "locked") $("#entry-error").textContent = err.message;
@@ -382,6 +399,7 @@ function openDelete(entry) {
       state.revealed = null;
       $("#app").classList.remove("show-detail");
       await loadEntries();
+      markHealthStale(entry.id);
       toast("Entry deleted.");
     } catch { /* shown by api() */ }
   };
@@ -578,6 +596,7 @@ $("#import-form").addEventListener("submit", async (event) => {
     });
     clearSettings();
     await loadEntries();
+    markHealthStale();
     const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
     toast(`Imported ${plural(result.added, "entry", "entries")}. Skipped ${plural(result.skipped, "duplicate", "duplicates")}.`);
   } catch (err) {
@@ -650,6 +669,196 @@ function dialogBreachBox() {
       h("button", { id: "breach-btn", class: "btn btn-small", type: "button", onclick: breachFromDialog }, "Check if leaked"),
       h("span", { id: "breach-result", class: "breach-result", role: "status" })),
     h("p", { class: "hint" }, BREACH_NOTE));
+}
+
+/* ---------- password health (scan runs only when you press the button) ---------- */
+// state.health = { data, breach: {id: result}, stale, confirmAll, progress } or null
+
+function markHealthStale(entryId) {
+  if (!state.health) return;
+  state.health.stale = true;
+  if (entryId) delete state.health.breach[entryId];  // its password may have changed
+}
+
+$("#health-btn").addEventListener("click", () => {
+  renderHealth();
+  $("#health-dialog").showModal();
+});
+$("#health-close").addEventListener("click", () => $("#health-dialog").close());
+
+$("#health-scan").addEventListener("click", async () => {
+  const button = $("#health-scan");
+  button.disabled = true;
+  button.textContent = "Scanning\u2026";
+  try {
+    const data = await api("/api/health/scan", { method: "POST", body: {} });
+    state.health = {
+      data,
+      breach: state.health ? state.health.breach : {},
+      stale: false,
+      confirmAll: false,
+      progress: null,
+    };
+  } catch (err) {
+    if (err.message !== "locked") toast(err.message);
+  } finally {
+    button.disabled = false;
+  }
+  renderHealth();
+});
+
+const breachOf = (id) => (state.health && state.health.breach[id]) || null;
+const wasChecked = (b) => b && typeof b.found === "boolean";
+
+function stat(value, label, sub, bad = false) {
+  return h("div", { class: "stat" },
+    h("span", { class: `stat-num${bad && value > 0 ? " bad" : ""}` }, String(value)),
+    h("span", { class: "stat-label" }, label),
+    sub ? h("span", { class: "stat-sub" }, sub) : null);
+}
+
+function priorityOf(entry) {
+  const b = breachOf(entry.id);
+  return (wasChecked(b) && b.found) || entry.weak ? "high" : "review";
+}
+
+function reasonsFor(entry) {
+  const items = [];
+  if (entry.weak) {
+    items.push(h("li", {},
+      `Weak password: rated ${levelText(entry.strength).toLowerCase()}.`,
+      entry.issues.length ? h("div", { class: "reason-sub" }, entry.issues.join(" ")) : null));
+  }
+  if (entry.reused) {
+    const others = entry.reused_with;
+    const shown = others.slice(0, 3).join(", ") + (others.length > 3 ? ` and ${others.length - 3} more` : "");
+    items.push(h("li", {}, `Same password as ${shown}.`));
+  }
+  const b = breachOf(entry.id);
+  if (b && b.checking) items.push(h("li", { class: "reason-sub" }, "Checking for leaks\u2026"));
+  else if (b && b.error) items.push(h("li", { class: "reason-sub" }, `Leak check failed: ${b.error}`));
+  else if (wasChecked(b)) {
+    items.push(h("li", { class: b.found ? "breach-found" : "breach-clear" },
+      b.found ? describeBreach(b).text : "Not found in known breaches."));
+  }
+  return items;
+}
+
+async function openEntryFromHealth(id) {
+  $("#health-dialog").close();
+  $("#search").value = "";
+  state.query = "";
+  await loadEntries();
+  selectEntry(id);
+}
+
+async function replaceFromHealth(id) {
+  const entry = state.entries.find((e) => e.id === id);
+  if (!entry) return;
+  $("#health-dialog").close();
+  await openEntryForm(entry, { replacement: true });
+}
+
+async function healthCheckLeak(id) {
+  const health = state.health;
+  health.breach[id] = { checking: true };
+  renderHealth();
+  try {
+    health.breach[id] = await api(`/api/entries/${id}/breach-check`, { method: "POST", body: {} });
+  } catch (err) {
+    if (err.message === "locked") return;
+    health.breach[id] = { error: err.message };
+  }
+  if (state.health === health) renderHealth();
+}
+
+async function healthCheckAll() {
+  const health = state.health;
+  health.confirmAll = false;
+  const ids = health.data.entries.map((e) => e.id);
+  for (let i = 0; i < ids.length; i++) {
+    if (state.health !== health) return;
+    health.progress = `Checking ${i + 1} of ${ids.length}\u2026`;
+    renderHealth();
+    try {
+      health.breach[ids[i]] = await api(`/api/entries/${ids[i]}/breach-check`, { method: "POST", body: {} });
+    } catch (err) {
+      if (err.message === "locked") return;
+      health.breach[ids[i]] = { error: err.message };
+      break;  // most likely offline: stop instead of failing for every entry
+    }
+  }
+  health.progress = null;
+  if (state.health === health) renderHealth();
+}
+
+function renderHealth() {
+  const body = $("#health-body");
+  body.replaceChildren();
+  const health = state.health;
+  $("#health-scan").textContent = health ? "Scan again" : "Scan vault";
+
+  if (!health) {
+    body.append(h("p", {}, "Nothing scanned yet. Press Scan vault to check your saved passwords for weak and reused ones."));
+    return;
+  }
+
+  const { data } = health;
+  if (health.stale) {
+    body.append(h("p", { class: "stale", role: "status" }, "Your vault has changed since this scan. Scan again to refresh these results."));
+  }
+  if (data.total === 0) {
+    body.append(h("p", {}, "Your vault is empty. Add entries first, then scan."));
+    return;
+  }
+
+  const checked = data.entries.filter((e) => wasChecked(breachOf(e.id))).length;
+  const breached = data.entries.filter((e) => { const b = breachOf(e.id); return wasChecked(b) && b.found; }).length;
+
+  body.append(h("div", { class: "stats" },
+    stat(data.total, data.total === 1 ? "Password checked" : "Passwords checked"),
+    stat(data.weak, "Weak", "Very weak or weak", true),
+    stat(data.reused, "Reused", data.reused_groups ? `In ${data.reused_groups} ${data.reused_groups === 1 ? "group" : "groups"}` : "Each one is unique", true),
+    stat(breached, "Known breached", `${checked} of ${data.total} checked`, true)));
+
+  const flagged = data.entries
+    .filter((e) => e.weak || e.reused || (wasChecked(breachOf(e.id)) && breachOf(e.id).found))
+    .sort((a, b) => (priorityOf(a) === "high" ? 0 : 1) - (priorityOf(b) === "high" ? 0 : 1));
+
+  if (flagged.length === 0) {
+    body.append(h("p", {}, "No weak or reused passwords found."));
+  } else {
+    body.append(h("div", { class: "issues" }, flagged.map((entry) => {
+      const priority = priorityOf(entry);
+      const b = breachOf(entry.id);
+      return h("div", { class: `issue issue-${priority}` },
+        h("div", { class: "issue-top" },
+          h("div", {},
+            h("span", { class: "issue-name" }, entry.name),
+            entry.username ? h("span", { class: "issue-user" }, `  ${entry.username}`) : null),
+          h("span", { class: "priority" }, priority === "high" ? "High priority" : "Review")),
+        h("ul", { class: "reasons" }, reasonsFor(entry)),
+        h("div", { class: "issue-actions" },
+          h("button", { class: "btn btn-small", type: "button", onclick: () => openEntryFromHealth(entry.id) }, "Open"),
+          h("button", { class: "btn btn-small", type: "button", onclick: () => replaceFromHealth(entry.id) }, "Generate replacement"),
+          h("button", { class: "btn btn-small", type: "button", disabled: !!(b && b.checking), onclick: () => healthCheckLeak(entry.id) }, "Check for leaks")));
+    })));
+  }
+
+  // Breach status is separate and opt-in. An unchecked entry is not known to be safe.
+  const total = data.total;
+  if (health.confirmAll) {
+    body.append(h("div", { class: "confirm-box" },
+      h("p", {}, `This sends ${total} ${total === 1 ? "lookup" : "lookups"} to haveibeenpwned.com, one per entry. Each lookup contains only the first 5 characters of a one-way hash. No password is ever sent.`),
+      h("div", { class: "issue-actions" },
+        h("button", { class: "btn btn-primary btn-small", type: "button", onclick: healthCheckAll }, `Send ${total} ${total === 1 ? "lookup" : "lookups"}`),
+        h("button", { class: "btn btn-small", type: "button", onclick: () => { health.confirmAll = false; renderHealth(); } }, "Cancel"))));
+  } else {
+    body.append(h("div", { class: "issue-actions" },
+      h("button", { class: "btn btn-small", type: "button", disabled: !!health.progress, onclick: () => { health.confirmAll = true; renderHealth(); } },
+        health.progress || "Check all entries for leaks"),
+      h("span", { class: "hint" }, `Breach status: ${checked} of ${total} checked. An entry you haven't checked isn't known to be safe.`)));
+  }
 }
 
 /* ---------- lock ---------- */

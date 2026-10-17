@@ -43,6 +43,7 @@
       </div>
       <div class="topbar-actions">
         <button id="add-btn" class="btn btn-primary" type="button">Add entry</button>
+        <button id="health-btn" class="btn" type="button">Health</button>
         <button id="check-btn" class="btn" type="button">Strength check</button>
         <button id="settings-btn" class="btn" type="button">Settings</button>
         <button id="lock-btn" class="btn" type="button">Lock</button>
@@ -58,6 +59,7 @@
   <dialog id="entry-dialog" aria-labelledby="entry-title">
     <form id="entry-form" class="dialog-body" autocomplete="off">
       <h2 id="entry-title" class="dialog-title"></h2>
+      <p id="entry-note" class="note-box" hidden>A new random password is filled in below. Change it on the website first, then press Save entry. Cancel keeps your current one.</p>
       <div>
         <label class="label" for="f-name">Name</label>
         <input id="f-name" class="input" maxlength="100" placeholder="GitHub" required>
@@ -75,6 +77,7 @@
         <div class="tools" id="f-tools">
           <button id="f-generate" class="btn btn-small" type="button">Generate random</button>
           <button id="f-check" class="btn btn-small" type="button">Check strength</button>
+          <button id="f-copy" class="btn btn-small" type="button">Copy password</button>
         </div>
       </div>
       <div>
@@ -154,6 +157,23 @@
       <div class="dialog-actions about">
         <p class="hint version">Vault version {{ version }}</p>
         <button id="settings-close" class="btn" type="button">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Password health -->
+  <dialog id="health-dialog" aria-labelledby="health-title">
+    <div class="dialog-body">
+      <div class="health-head">
+        <div>
+          <h2 id="health-title" class="dialog-title">Password health</h2>
+          <p class="hint">A checkup of the passwords saved in this vault. The scan runs on this computer and never shows or sends your passwords.</p>
+        </div>
+        <button id="health-scan" class="btn btn-primary" type="button">Scan vault</button>
+      </div>
+      <div id="health-body" class="health-body" aria-live="polite"></div>
+      <div class="dialog-actions">
+        <button id="health-close" class="btn" type="button">Close</button>
       </div>
     </div>
   </dialog>
