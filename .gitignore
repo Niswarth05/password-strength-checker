@@ -1,26 +1,6 @@
-# Python environments
 .venv/
-venv/
-env/
-
-# Python cache
 __pycache__/
-*.py[cod]
-
-# Local secrets and encrypted vault
-.env
-.env.*
-!.env.example
-vault.enc
-password.hash
-
-# Test and coverage caches
+*.pyc
 .pytest_cache/
-.coverage
-htmlcov/
-
-# Local backups
-*.v2-backup
-
-# Editor and OS files
-.DS_Store
+vault.enc*
+.vault-*.tmp

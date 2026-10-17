@@ -29,6 +29,7 @@
           <button id="auth-check" class="btn btn-quiet" type="button">Strength check</button>
         </div>
       </form>
+      <p class="hint version">Version {{ version }}</p>
     </div>
   </section>
 
@@ -150,7 +151,8 @@
         <button class="btn btn-primary section-submit" type="submit">Import backup</button>
       </form>
 
-      <div class="dialog-actions">
+      <div class="dialog-actions about">
+        <p class="hint version">Vault version {{ version }}</p>
         <button id="settings-close" class="btn" type="button">Close</button>
       </div>
     </div>

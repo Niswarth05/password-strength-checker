@@ -90,13 +90,14 @@ function bindShowToggle(button, input) {
 }
 
 /* ---------- state ---------- */
-const state = { entries: [], selectedId: null, revealed: null, query: "" };
+const state = { entries: [], selectedId: null, revealed: null, query: "", breach: null };
 const minMaster = Number(document.body.dataset.minMaster);
 
 /* ---------- create / unlock ---------- */
 let vaultExists = false;
 
 async function showAuth(message = "") {
+  state.breach = null;
   state.entries = [];
   state.selectedId = null;
   state.revealed = null;
@@ -197,6 +198,7 @@ function renderList() {
 
 function selectEntry(id) {
   state.selectedId = id;
+  state.breach = null;
   state.revealed = null;
   $("#app").classList.add("show-detail");
   renderList();
@@ -222,7 +224,7 @@ function renderDetail() {
     return;
   }
 
-  const none = h("span", { class: "none" }, "Not set");
+  const none = () => h("span", { class: "none" }, "Not set");  // a new element each time
   const isLink = /^https?:\/\//i.test(entry.url);
 
   const secret = state.revealed !== null
@@ -237,7 +239,7 @@ function renderDetail() {
       `Added ${formatDate(entry.created)}`,
       entry.updated !== entry.created ? `. Updated ${formatDate(entry.updated)}` : ""),
 
-    field("Username or email", entry.username ? entry.username : none,
+    field("Username or email", entry.username ? entry.username : none(),
       entry.username ? h("button", { class: "btn btn-small", type: "button",
         onclick: () => copyText(entry.username, "Username") }, "Copy") : null),
 
@@ -251,11 +253,12 @@ function renderDetail() {
           h("button", { class: "btn btn-small", type: "button", onclick: copyPassword }, "Copy"))),
       state.revealed !== null
         ? h("p", { class: "hint legend" }, "Digits are teal and symbols are brass, so look-alike characters are easy to tell apart.")
-        : null),
+        : null,
+      breachBox(entry.id)),
 
     field("Website",
-      entry.url ? (isLink ? h("a", { href: entry.url, target: "_blank", rel: "noopener noreferrer" }, entry.url) : entry.url) : none),
-    field("Notes", entry.notes ? h("p", { class: "notes-text" }, entry.notes) : none),
+      entry.url ? (isLink ? h("a", { href: entry.url, target: "_blank", rel: "noopener noreferrer" }, entry.url) : entry.url) : none()),
+    field("Notes", entry.notes ? h("p", { class: "notes-text" }, entry.notes) : none()),
 
     h("div", { class: "detail-actions" },
       h("button", { class: "btn", type: "button", onclick: () => openEntryForm(entry) }, "Edit"),
@@ -454,7 +457,8 @@ function renderCheck(r) {
       Object.entries(r.checks).map(([label, ok]) =>
         h("li", { class: ok ? "check-pass" : "check-fail" }, label))),
 
-    r.suggestion ? suggestionBlock(r.suggestion) : null);
+    r.suggestion ? suggestionBlock(r.suggestion) : null,
+    dialogBreachBox());
 }
 
 function suggestionBlock(s) {
@@ -580,6 +584,73 @@ $("#import-form").addEventListener("submit", async (event) => {
     if (err.message !== "locked") msg.textContent = err.message;
   }
 });
+
+/* ---------- breach check (optional, runs only when you press the button) ---------- */
+const BREACH_NOTE = "Optional. Sends only the first 5 characters of a one-way hash to haveibeenpwned.com. The password itself never leaves this computer.";
+
+function describeBreach(result) {
+  if (result.found) {
+    return {
+      cls: "breach-found",
+      text: `Seen ${result.count.toLocaleString()} times in known data breaches. Don't use it anywhere, and change it on any site that still uses it.`,
+    };
+  }
+  return {
+    cls: "breach-clear",
+    text: "Not found in known breaches. That doesn't prove it is safe, only that it hasn't appeared in public leaks.",
+  };
+}
+
+function breachBox(entryId) {
+  const shown = state.breach && state.breach.id === entryId ? state.breach : null;
+  return h("div", { class: "breach" },
+    h("div", { class: "breach-row" },
+      h("button", { class: "btn btn-small", type: "button", onclick: breachFromEntry }, "Check if leaked"),
+      shown ? h("span", { class: `breach-result ${shown.cls}`, role: "status" }, shown.text) : null),
+    h("p", { class: "hint" }, BREACH_NOTE));
+}
+
+async function breachFromEntry() {
+  const id = state.selectedId;
+  state.breach = { id, cls: "", text: "Checking\u2026" };
+  renderDetail();
+  try {
+    const result = await api(`/api/entries/${id}/breach-check`, { method: "POST", body: {} });
+    state.breach = { id, ...describeBreach(result) };
+  } catch (err) {
+    if (err.message === "locked") return;
+    state.breach = { id, cls: "breach-error", text: err.message };
+  }
+  if (state.selectedId === id) renderDetail();
+}
+
+async function breachFromDialog() {
+  const out = $("#breach-result");
+  const button = $("#breach-btn");
+  out.className = "breach-result";
+  out.textContent = "Checking\u2026";
+  button.disabled = true;
+  try {
+    const result = await api("/api/breach-check", { method: "POST", body: { password: $("#check-input").value } });
+    const described = describeBreach(result);
+    out.className = `breach-result ${described.cls}`;
+    out.textContent = described.text;
+  } catch (err) {
+    if (err.message === "locked") return;
+    out.className = "breach-result breach-error";
+    out.textContent = err.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function dialogBreachBox() {
+  return h("div", { class: "breach" },
+    h("div", { class: "breach-row" },
+      h("button", { id: "breach-btn", class: "btn btn-small", type: "button", onclick: breachFromDialog }, "Check if leaked"),
+      h("span", { id: "breach-result", class: "breach-result", role: "status" })),
+    h("p", { class: "hint" }, BREACH_NOTE));
+}
 
 /* ---------- lock ---------- */
 $("#lock-btn").addEventListener("click", async () => {

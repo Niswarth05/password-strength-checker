@@ -1,9 +1,11 @@
 # Vault: a local password manager
 
 A small password manager that runs on your own computer. Your logins live in one
-encrypted file, and nothing is ever sent over the internet.
+encrypted file. Nothing leaves your computer unless you press **Check if leaked**
+(see [Breach check](#breach-check-optional)).
 
-**Version 2.1.** The password manager is the main feature. The strength checker is a side tool.
+**Version 0.2.2.** The password manager is the main feature. The strength checker is a side tool.
+The version is shown in Settings and on the unlock screen.
 
 ## Features
 
@@ -39,6 +41,21 @@ really try first: common passwords, dictionary words, names, dates, keyboard pat
 sequences like `1234`, repeats, and swaps like `p@ssw0rd`. From the Add entry form, the entry's name and
 username are also treated as guessable words.
 
+### Breach check (optional)
+
+Press **Check if leaked** on an entry, or in the strength check dialog, to see whether a password
+has appeared in known data breaches. It uses the
+[Have I Been Pwned range API](https://haveibeenpwned.com/API/v3#PwnedPasswords) and keeps your password private:
+
+1. The password is hashed (SHA-1) on your computer.
+2. Only the **first 5 characters** of the hash are sent.
+3. The service replies with every leaked hash starting with those 5 characters.
+4. Your computer looks for the rest of your hash in that list.
+
+The password and its full hash never leave your computer, and nothing is looked up until you press the button.
+If you are offline, you get a clear message and nothing else happens. A result of "not found" does not prove
+a password is safe. It only means it has not appeared in public leaks.
+
 A password counts as weak when it rates **Very weak** or **Weak**. To also get suggestions
 for **Medium** passwords, add `"MEDIUM"` to `WEAK_LEVELS` in `strength.py`.
 
@@ -51,7 +68,7 @@ for **Medium** passwords, add `"MEDIUM"` to `WEAK_LEVELS` in `strength.py`.
 | Vault file | `vault.enc`, readable only by you (`chmod 600`), written atomically so it can't be left half-saved. |
 | Backups | Encrypted the same way, with their own password and salt. A backup file shows no names, usernames or passwords. |
 | Imported files | Treated as untrusted: encryption settings are bounds-checked and every entry is validated. |
-| Local only | The server listens on `127.0.0.1` and rejects requests for any other hostname. |
+| Local only | The server listens on `127.0.0.1` and rejects requests for any other hostname. The only outside connection is the optional breach check, which sends 5 characters of a hash. |
 | Browser | Strict Content-Security-Policy, no external scripts, fonts or requests. Entry text is never rendered as HTML. |
 | Guessing | After 5 wrong master passwords (at unlock, export or change), the vault waits 30 seconds. |
 
@@ -81,7 +98,8 @@ make run        # start the app
 Then open **http://127.0.0.1:5000** (or `http://localhost:5000`) in your browser.
 The first time, you'll be asked to create a master password of at least 12 characters.
 
-Run the tests with `make test`.
+Run the tests with `make test`. To start over with a fresh vault, run `make reset-vault`. It moves
+`vault.enc` aside (it never deletes it) and `.gitignore` keeps all `vault.enc*` files out of git.
 
 To keep the vault somewhere else, set `VAULT_FILE`:
 
@@ -95,6 +113,7 @@ VAULT_FILE=~/secure/my-vault.enc make run
 ├── app.py              Flask routes and request safety checks
 ├── vault.py            Encrypted vault: entries, change master password, backups
 ├── strength.py         Strength checker (zxcvbn) and "based on yours" suggestions
+├── breach.py           Optional breach check (k-anonymity range lookup)
 ├── templates/
 │   └── index.html
 ├── static/
@@ -114,8 +133,10 @@ Fonts: Bricolage Grotesque and JetBrains Mono (SIL Open Font License).
 
 ## Ideas for later
 
-- Check passwords against known breaches (Have I Been Pwned, k-anonymity)
-- Password health report: reused, weak and old passwords
-- Two-factor (TOTP) codes
-- Tags or folders
+- Password health report: reused, weak, breached and old passwords
+- Passphrase generator
+- Import from CSV (Chrome, Firefox, Bitwarden)
+- Backup verification
+- Tags, folders and favourites
 - A command-line version that reuses `vault.py`
+- Docker image or pip package for 1.0.0

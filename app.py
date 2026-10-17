@@ -4,8 +4,11 @@ from datetime import date
 
 from flask import Flask, Response, jsonify, render_template, request
 
+import breach
 import strength
 from vault import Vault, VaultError, MIN_MASTER_LENGTH
+
+VERSION = "0.2.2"
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # largest request body: 5 MB
@@ -71,11 +74,16 @@ def handle_vault_error(err):
     return jsonify(error=str(err)), 400
 
 
+@app.errorhandler(breach.BreachCheckError)
+def handle_breach_error(err):
+    return jsonify(error=str(err)), 502
+
+
 # ----- pages ---------------------------------------------------------------
 
 @app.route("/")
 def home():
-    return render_template("index.html", min_master=MIN_MASTER_LENGTH)
+    return render_template("index.html", min_master=MIN_MASTER_LENGTH, version=VERSION)
 
 
 # ----- vault lifecycle -----------------------------------------------------
@@ -188,6 +196,24 @@ def check():
     if not isinstance(context, list):
         context = []
     return jsonify(strength.review(password, [c for c in context if isinstance(c, str)]))
+
+
+# ----- breach check (optional, only when the user presses the button) -----------
+
+@app.route("/api/breach-check", methods=["POST"])
+def breach_check():
+    password = json_body().get("password", "")
+    if not isinstance(password, str) or not password:
+        raise VaultError("Enter a password to check.")
+    return jsonify(breach.check_password(password))
+
+
+@app.route("/api/entries/<entry_id>/breach-check", methods=["POST"])
+@require_unlocked
+def entry_breach_check(entry_id):
+    json_body()
+    # The stored password is read here, on the server. It is never sent to the browser.
+    return jsonify(breach.check_password(vault.get(entry_id)["password"]))
 
 
 @app.route("/api/generate", methods=["POST"])

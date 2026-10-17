@@ -128,3 +128,78 @@ def test_check_endpoint_accepts_context_words(client):
     assert res["weak"] and res["suggestion"]
     # junk context must not crash it
     assert call(client, "post", "/api/check", {"password": "abc", "context": "nope"}).status_code == 200
+
+
+# ----- v0.2.2: breach check and version ---------------------------------------
+
+import re
+
+import breach
+
+PWNED_SUFFIX = "1E4C9B93F3F0682250B6CF8331B7EE68FD8"  # SHA-1("password"), without the 5-char prefix
+
+
+@pytest.fixture
+def fake_service(monkeypatch):
+    """Pretend to be the breach service, and record what would have been sent."""
+    sent = []
+
+    def fake_fetch(prefix):
+        sent.append(prefix)
+        return f"{PWNED_SUFFIX}:12345\n0018A45C4D1DEF81644B54AB7F969B88D65:3"
+
+    monkeypatch.setattr(breach, "fetch_range", fake_fetch)
+    return sent
+
+
+def test_breach_check_endpoint(client, fake_service):
+    res = call(client, "post", "/api/breach-check", {"password": "password"})
+    assert res.json == {"found": True, "count": 12345}
+    assert fake_service == ["5BAA6"]
+
+    res = call(client, "post", "/api/breach-check", {"password": "a long unique phrase nobody used 7731"})
+    assert res.json == {"found": False, "count": 0}
+
+
+def test_breach_check_validates_input(client, fake_service):
+    assert call(client, "post", "/api/breach-check", {"password": ""}).status_code == 400
+    assert call(client, "post", "/api/breach-check", {"password": 123}).status_code == 400
+    assert fake_service == []  # nothing was looked up
+
+
+def test_entry_breach_check_uses_the_stored_password(client, fake_service):
+    call(client, "post", "/api/setup", {"master": MASTER})
+    entry = call(client, "post", "/api/entries", {"name": "Old site", "password": "password"}).json["entry"]
+    res = call(client, "post", f"/api/entries/{entry['id']}/breach-check", {})
+    assert res.json == {"found": True, "count": 12345}
+    assert "password" not in res.get_data(as_text=True).replace('"found"', "")
+
+
+def test_entry_breach_check_needs_an_unlocked_vault(client, fake_service):
+    call(client, "post", "/api/setup", {"master": MASTER})
+    entry = call(client, "post", "/api/entries", {"name": "Site", "password": "pw-12345678"}).json["entry"]
+    call(client, "post", "/api/lock", {})
+    res = call(client, "post", f"/api/entries/{entry['id']}/breach-check", {})
+    assert res.status_code == 401
+    assert fake_service == []
+
+
+def test_breach_check_offline_returns_a_clear_error(client, monkeypatch):
+    def offline(prefix):
+        raise breach.BreachCheckError("Couldn't reach the breach database. Check your internet connection and try again.")
+
+    monkeypatch.setattr(breach, "fetch_range", offline)
+    res = call(client, "post", "/api/breach-check", {"password": "anything-at-all"})
+    assert res.status_code == 502 and "Couldn't reach" in res.json["error"]
+
+
+def test_breach_check_rejects_non_json(client, fake_service):
+    res = client.post("/api/breach-check", data="password=abc", content_type="text/plain",
+                      base_url="http://127.0.0.1:5000")
+    assert res.status_code == 400 and fake_service == []
+
+
+def test_version_is_valid_and_shown_on_the_page(client):
+    assert re.fullmatch(r"\d+\.\d+\.\d+", app_module.VERSION)
+    page = call(client, "get", "/").get_data(as_text=True)
+    assert f"Vault version {app_module.VERSION}" in page
